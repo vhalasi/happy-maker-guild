@@ -7,3 +7,5 @@
 - [ ] Typed integration stubs (src/integration/stubs.ts)
 - [ ] UI shell: top bar, project tree, 3D viewport (R3F grid+orbit placeholder), Inspector, Change impact, command bar + chat, proposal dialog, jobs indicator
 - [ ] Route head metadata; verify build
+
+- [ ] Hackathon demo context: keep everything mock/stub-driven, polish visuals for presentation
