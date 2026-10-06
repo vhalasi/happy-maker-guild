@@ -18,7 +18,7 @@ The local worker binds only to `127.0.0.1`, limits a job to ten minutes and reta
 
 Set these as server-side environment variables. Keep them out of browser-prefixed variables:
 
-- `OPENAI_API_KEY`: Astra access.
+- `LOVABLE_API_KEY`: Astra access via the Lovable AI Gateway (managed secret, already configured).
 - `BLENDER_WORKER_URL`: worker job endpoint, for example `https://worker.example.com/jobs`.
 - `BLENDER_WORKER_TOKEN`: optional bearer token sent to the worker.
 
