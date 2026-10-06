@@ -104,6 +104,7 @@ export const useAppStore = create<AppState>((set) => ({
   ],
   canUndo: true,
   canRedo: false,
+  briefOpen: true,
 
   selectEntity: (id) => set({ selectedEntityId: id }),
   addChatMessage: (msg) =>
@@ -117,4 +118,24 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status } : j)) })),
   bumpVersion: () => set((s) => ({ version: s.version + 1 })),
   setHistory: (canUndo, canRedo) => set({ canUndo, canRedo }),
+  setBriefOpen: (open) => set({ briefOpen: open }),
+  startProject: (brief, reply) =>
+    set({
+      projectName: nameFromBrief(brief),
+      version: 1,
+      selectedEntityId: null,
+      chatMessages: [
+        { id: nextId(), role: "user", text: brief, timestamp: Date.now() - 5_000 },
+        { id: nextId(), role: "assistant", text: reply, timestamp: Date.now() },
+      ],
+      pendingProposal: null,
+      jobs: [
+        { id: "job-brief", label: "Interpreting brief", status: "done" },
+        { id: "job-concept", label: "Concept model", status: "running" },
+        { id: "job-cost", label: "Cost estimate v1", status: "queued" },
+      ],
+      canUndo: false,
+      canRedo: false,
+      briefOpen: false,
+    }),
 }));
