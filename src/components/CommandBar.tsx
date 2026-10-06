@@ -16,8 +16,9 @@ export function CommandBar() {
     setInput("");
     setSending(true);
     addChatMessage({ role: "user", text });
-    const { reply } = await sendDesignRequest(text, selectedEntityId);
+    const { reply, proposal } = await sendDesignRequest(text, selectedEntityId);
     addChatMessage({ role: "assistant", text: reply });
+    if (proposal) useAppStore.getState().setProposal(proposal);
     setSending(false);
     requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }));
   };
