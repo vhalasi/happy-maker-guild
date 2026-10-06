@@ -93,7 +93,8 @@ export const useAppStore = create<AppState>((set) => ({
       timestamp: Date.now() - 40_000,
     },
   ],
-  pendingProposal: {
+  pendingProposal: null,
+  _unusedProposalExample: {
     id: "prop-001",
     title: "Add skylight above kitchen",
     options: [
