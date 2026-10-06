@@ -54,6 +54,7 @@ interface AppState {
   jobs: Job[];
   canUndo: boolean;
   canRedo: boolean;
+  briefOpen: boolean;
 
   selectEntity: (id: string | null) => void;
   addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
@@ -63,6 +64,8 @@ interface AppState {
   updateJob: (id: string, status: JobStatus) => void;
   bumpVersion: () => void;
   setHistory: (canUndo: boolean, canRedo: boolean) => void;
+  setBriefOpen: (open: boolean) => void;
+  startProject: (brief: string, reply: string) => void;
 }
 
 let msgCounter = 0;
