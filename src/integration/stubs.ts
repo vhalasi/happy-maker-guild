@@ -147,6 +147,13 @@ export async function sendDesignRequest(
   };
 }
 
+export async function startBrief(brief: string): Promise<{ reply: string }> {
+  await delay(900);
+  return {
+    reply: `Got it — I've started a project from your brief: "${brief}". The concept model is being interpreted. From here, refine by chat — try "add a skylight above the kitchen" to see a proposal with two options.`,
+  };
+}
+
 export async function acceptProposal(id: string): Promise<{ ok: boolean; newVersion: number }> {
   await delay(150);
   return { ok: true, newVersion: 13 };
