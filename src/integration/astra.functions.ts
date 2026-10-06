@@ -176,7 +176,7 @@ async function callAstra(input: unknown, tools: readonly unknown[]): Promise<Res
     },
     body: JSON.stringify({
       model: "openai/gpt-6-astra",
-      reasoning: { effort: "high", summary: "auto" },
+      reasoning: { effort: "low", summary: "auto" },
       include: ["reasoning.encrypted_content"],
       input,
       tools,
@@ -354,9 +354,45 @@ export const startAstraProject = createServerFn({ method: "POST" })
       building_name: string; site_width: number; site_length: number; design_notes: string;
       levels: Array<{ name: string; elevation: number; height: number; rooms: Array<{ name: string; x: number; z: number; width: number; length: number; floor_material: string; openings: Array<{ name: string; kind: "door" | "window"; side: "north" | "east" | "south" | "west"; width: number; height: number; sill_height: number; offset: number; material: string }> }> }>;
     };
-    if (concept.levels.length === 0 || concept.levels.length > 6 || concept.site_width <= 0 || concept.site_length <= 0) {
-      throw new Error("Astra returned an invalid building envelope. Try refining the brief.");
+    // Auto-repair instead of failing on odd values.
+    const num = (v: unknown, fallback: number) => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
+    concept.levels = (concept.levels ?? []).filter((l) => l && Array.isArray(l.rooms) && l.rooms.length > 0).slice(0, 6);
+    if (concept.levels.length === 0) throw new Error("The AI didn't return any rooms. Please try again.");
+    concept.site_width = Math.max(num(concept.site_width, 20), 5);
+    concept.site_length = Math.max(num(concept.site_length, 20), 5);
+    concept.building_name ||= "New house";
+    concept.levels.forEach((level, i) => {
+      level.name ||= `Level ${i + 1}`;
+      level.height = Math.min(Math.max(num(level.height, 3), 2.4), 8);
+      level.rooms.forEach((room, j) => {
+        room.name ||= `Room ${j + 1}`;
+        room.x = num(room.x, 0);
+        room.z = num(room.z, 0);
+        room.width = Math.min(Math.max(num(room.width, 3), 1.5), 30);
+        room.length = Math.min(Math.max(num(room.length, 3), 1.5), 30);
+        room.floor_material ||= "Oak";
+        room.openings = Array.isArray(room.openings) ? room.openings : [];
+      });
+    });
+    // Auto-repair small layout mistakes instead of failing: nudge overlapping rooms apart, then grow the site to fit.
+    for (const levelDraft of concept.levels) {
+      const placed: typeof levelDraft.rooms = [];
+      for (const room of levelDraft.rooms) {
+        for (let attempt = 0; attempt < 40; attempt++) {
+          const hit = placed.find((other) =>
+            Math.min(room.x + room.width / 2, other.x + other.width / 2) - Math.max(room.x - room.width / 2, other.x - other.width / 2) > 0.01 &&
+            Math.min(room.z + room.length / 2, other.z + other.length / 2) - Math.max(room.z - room.length / 2, other.z - other.length / 2) > 0.01);
+          if (!hit) break;
+          room.x = hit.x + hit.width / 2 + room.width / 2;
+        }
+        placed.push(room);
+      }
     }
+    const allRooms = concept.levels.flatMap((level) => level.rooms);
+    const neededWidth = Math.max(...allRooms.map((room) => Math.abs(room.x) + room.width / 2)) * 2 + 2;
+    const neededLength = Math.max(...allRooms.map((room) => Math.abs(room.z) + room.length / 2)) * 2 + 2;
+    concept.site_width = Math.max(concept.site_width, neededWidth);
+    concept.site_length = Math.max(concept.site_length, neededLength);
     let model: ProjectModel = {
       schemaVersion: 1,
       version: 1,
@@ -414,15 +450,20 @@ export const startAstraProject = createServerFn({ method: "POST" })
         for (const [openingIndex, openingDraft] of roomDraft.openings.entries()) {
           const wallId = wallsBySide[openingDraft.side];
           const wall = wallId ? model.walls[wallId] : undefined;
-          if (!wall || !(openingDraft.width > 0 && openingDraft.height > 0 && openingDraft.offset >= 0) || openingDraft.offset + openingDraft.width > Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]) || openingDraft.sill_height < 0 || openingDraft.sill_height + openingDraft.height > wall.height) {
-            throw new Error(`${openingDraft.name} does not fit its wall. Ask Astra to revise the concept.`);
-          }
+          if (!wall) continue;
           const wallLength = Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]);
+          // Auto-repair: clamp openings into their wall instead of failing the whole house.
+          openingDraft.width = Math.min(Math.max(openingDraft.width, 0.6), Math.max(wallLength - 0.2, 0.3));
+          openingDraft.height = Math.min(Math.max(openingDraft.height, 0.5), wall.height - 0.1);
+          openingDraft.sill_height = Math.min(Math.max(openingDraft.sill_height, 0), wall.height - openingDraft.height - 0.05);
+          openingDraft.offset = Math.min(Math.max(openingDraft.offset, 0.1), wallLength - openingDraft.width - 0.1);
+          if (!(openingDraft.width > 0.2 && openingDraft.offset >= 0 && openingDraft.sill_height >= 0)) continue;
           const edgeStart = edgeStartBySide[openingDraft.side] ?? wall.start;
           const sameDirection = Math.hypot(wall.start[0] - edgeStart[0], wall.start[1] - edgeStart[1]) < 0.01;
           const canonicalOffset = sameDirection ? openingDraft.offset : wallLength - openingDraft.offset - openingDraft.width;
-          const duplicate = wall.openingIds.map((id) => model.openings[id]).find((existing) => existing && existing.kind === openingDraft.kind && Math.abs(existing.offset - canonicalOffset) < 0.02 && Math.abs(existing.width - openingDraft.width) < 0.02 && Math.abs(existing.height - openingDraft.height) < 0.02);
-          if (duplicate) continue;
+          // Skip openings that collide with one already on this wall (e.g. both rooms placed the same door).
+          const clashes = wall.openingIds.map((id) => model.openings[id]).some((existing) => existing && canonicalOffset < existing.offset + existing.width + 0.05 && canonicalOffset + openingDraft.width > existing.offset - 0.05);
+          if (clashes) continue;
           const openingId = `opening-${levelIndex + 1}-${roomIndex + 1}-${openingIndex + 1}`;
           model.openings[openingId] = { id: openingId, name: openingDraft.name, kind: openingDraft.kind, wallId: wall.id, width: openingDraft.width, height: openingDraft.height, sillHeight: openingDraft.sill_height, offset: canonicalOffset, material: openingDraft.material };
           wall.openingIds.push(openingId);

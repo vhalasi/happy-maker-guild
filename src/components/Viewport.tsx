@@ -1,6 +1,6 @@
 import { createElement as h, Suspense, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Grid, useGLTF } from "@react-three/drei";
+import { OrbitControls, Grid, useGLTF, Environment, Lightformer, ContactShadows, Sky } from "@react-three/drei";
 import { useAppStore } from "@/state/appStore";
 import { getWallLength } from "@/engine/operations";
 import type { Opening, Wall } from "@/engine/model";
@@ -24,7 +24,7 @@ function DetailedAsset({ url, onSelect, validIds }: { url: string; onSelect: (id
 function RoomMesh({ room, elevation, selected, onSelect }: { room: { id: string; x: number; z: number; width: number; length: number; floorMaterial: string }; elevation: number; selected: boolean; onSelect: () => void }) {
   const color = room.floorMaterial.toLowerCase().includes("oak") ? "#9e815e" : room.floorMaterial.toLowerCase().includes("tile") ? "#8d9aa0" : "#777d80";
   return h("mesh", {
-    position: [room.x, elevation + 0.025, room.z],
+    position: [room.x, elevation + 0.025, room.z], receiveShadow: true,
     rotation: [-Math.PI / 2, 0, 0],
     onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); onSelect(); },
   },
@@ -42,7 +42,7 @@ function WallMesh({ wall, openings, elevation, selected, onSelect }: { wall: Wal
   const addPanel = (key: string, start: number, end: number, bottom: number, top: number) => {
     if (end - start < 0.02 || top - bottom < 0.02) return;
     elements.push(h("mesh", {
-      key,
+      key, castShadow: true, receiveShadow: true,
       position: [start + (end - start) / 2 - length / 2, bottom + (top - bottom) / 2, 0],
       onClick: (event: { stopPropagation: () => void }) => { event.stopPropagation(); onSelect(wall.id); },
     }, h("boxGeometry", { args: [end - start, top - bottom, wall.thickness] }),
@@ -98,14 +98,27 @@ function Scene() {
   ]);
 
   return h("group", null,
-    h("color", { key: "bg", attach: "background", args: ["#10131a"] }),
-    h("ambientLight", { key: "amb", intensity: 0.7 }),
-    h("directionalLight", { key: "sun", position: [10, 14, 6], intensity: 1.25 }),
+    h("fog", { key: "fog", attach: "fog", args: ["#e9b98f", 35, 120] }),
+    h(Sky, { key: "sky", sunPosition: [30, 8, -20], turbidity: 6, rayleigh: 2.2, mieCoefficient: 0.006, mieDirectionalG: 0.85 }),
+    h("hemisphereLight", { key: "hemi", args: ["#ffe2c2", "#3a4a3a", 0.55] }),
+    h("directionalLight", { key: "sun", position: [18, 12, -10], intensity: 2.4, color: "#ffc58a", castShadow: true, "shadow-mapSize": [2048, 2048], "shadow-camera-left": -25, "shadow-camera-right": 25, "shadow-camera-top": 25, "shadow-camera-bottom": -25 }),
+    h(Environment, { key: "env", resolution: 128 },
+      h(Lightformer, { intensity: 2, position: [0, 6, 0], scale: [12, 12, 1], rotation: [Math.PI / 2, 0, 0] }),
+      h(Lightformer, { intensity: 1.4, color: "#ffb37a", position: [-8, 2, -4], rotation: [0, Math.PI / 2, 0], scale: [20, 2, 1] }),
+      h(Lightformer, { intensity: 0.8, color: "#9ec4ff", position: [8, 2, 4], rotation: [0, -Math.PI / 2, 0], scale: [20, 2, 1] }),
+    ),
+    h("mesh", { key: "lawn", rotation: [-Math.PI / 2, 0, 0], position: [0, -0.01, 0], receiveShadow: true },
+      h("circleGeometry", { args: [80, 64] }),
+      h("meshStandardMaterial", { color: "#5d7a4a", roughness: 1 })),
+    h("mesh", { key: "plot", rotation: [-Math.PI / 2, 0, 0], position: [0, 0, 0], receiveShadow: true },
+      h("planeGeometry", { args: [model.site.width, model.site.length] }),
+      h("meshStandardMaterial", { color: "#cfc2a8", roughness: 0.9 })),
+    h(ContactShadows, { key: "cs", position: [0, 0.02, 0], opacity: 0.55, scale: 50, blur: 2.4, far: 12 }),
     ...(detailedAsset?.artifactUrl
       ? [h(Suspense, { key: `detailed-${detailedAsset.id}`, fallback: null }, h(DetailedAsset, { url: detailedAsset.artifactUrl, onSelect: selectEntity, validIds }))]
       : nodes),
-    h(Grid, { key: "grid", args: [40, 40], cellSize: 1, cellColor: "#2a2f3a", sectionSize: 5, sectionColor: "#3d4a5c", fadeDistance: 60, fadeStrength: 1.5, infiniteGrid: true }),
-    h(OrbitControls, { key: "orbit", makeDefault: true, target: [0, 2, 0] }),
+    h(Grid, { key: "grid", position: [0, 0.005, 0], args: [40, 40], cellSize: 1, cellColor: "#a89a80", cellThickness: 0.4, sectionSize: 5, sectionColor: "#8a7c62", fadeDistance: 40, fadeStrength: 2, infiniteGrid: true }),
+    h(OrbitControls, { key: "orbit", makeDefault: true, target: [0, 1.5, 0], autoRotate: true, autoRotateSpeed: 0.6, enableDamping: true, maxPolarAngle: Math.PI / 2.1 }),
   );
 }
 
@@ -114,7 +127,7 @@ export function Viewport() {
   const modelVersion = useAppStore((s) => s.model.version);
   return (
     <div id="viewport-root" className="relative min-w-0 flex-1 bg-background">
-      {h(Canvas, { camera: { position: [14, 10, 14], fov: 45 } }, h(Scene))}
+      {h(Canvas, { shadows: true, dpr: [1, 2], camera: { position: [16, 9, 16], fov: 40 } }, h(Scene))}
       <div className="pointer-events-none absolute left-3 top-3 data-mono text-muted-foreground">
         {selectedEntityId ? `selected: ${selectedEntityId}` : "click a room or wall to select"}
       </div>

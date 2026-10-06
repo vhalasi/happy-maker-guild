@@ -9,7 +9,7 @@ import { loadEnv } from "vite";
 
 // Load unprefixed secrets into the server process only. Never expose them as VITE_* client values.
 const serverEnv = loadEnv(process.env["NODE_ENV"] === "production" ? "production" : "development", process.cwd(), "");
-for (const name of ["OPENAI_API_KEY", "BLENDER_WORKER_URL", "BLENDER_WORKER_TOKEN"]) {
+for (const name of ["LOVABLE_API_KEY", "BLENDER_WORKER_URL", "BLENDER_WORKER_TOKEN"]) {
   const value = serverEnv[name];
   if (value && !process.env[name]) process.env[name] = value;
 }
