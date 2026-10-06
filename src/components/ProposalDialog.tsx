@@ -1,24 +1,34 @@
 import { Check, X } from "lucide-react";
 import { useAppStore, type ProposalOption } from "@/state/appStore";
-import { acceptProposal, rejectProposal } from "@/integration/stubs";
 import { ImpactTable } from "./ImpactTable";
 import { toast } from "sonner";
 
-function OptionCard({ option, single }: { option: ProposalOption; single: boolean }) {
-  const { setProposal, bumpVersion, addChatMessage } = useAppStore();
+function OptionCard({ option, single, baseVersion }: { option: ProposalOption; single: boolean; baseVersion: number }) {
+  const { setProposal, addChatMessage } = useAppStore();
 
   const accept = async () => {
-    const r = await acceptProposal(option.id);
-    if (r.ok) {
-      bumpVersion();
+    const state = useAppStore.getState();
+    if (state.model.version !== baseVersion) {
+      toast.error("The building changed while Astra was thinking. Ask Astra to review the latest version.");
       setProposal(null);
-      addChatMessage({ role: "assistant", text: `Accepted "${option.label}" — model is now at the next version.` });
-      toast.success("Proposal accepted");
+      return;
     }
+    if (option.operations.length) {
+      try {
+        for (const operation of option.operations) useAppStore.getState().applyDesignOperation(operation);
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "Could not apply this proposal.");
+        return;
+      }
+      setProposal(null);
+      addChatMessage({ role: "assistant", text: `Accepted "${option.label}". The building is now at v${useAppStore.getState().model.version}.` });
+      toast.success("Astra proposal applied");
+      return;
+    }
+    toast.error("Astra returned an empty proposal. Ask for the change again with more detail.");
   };
 
-  const reject = async () => {
-    await rejectProposal(option.id);
+  const reject = () => {
     setProposal(null);
     addChatMessage({ role: "assistant", text: `Rejected "${option.label}". No changes applied.` });
     toast.info("Proposal rejected");
@@ -65,7 +75,7 @@ export function ProposalDialog() {
         <h2 className="mt-1 text-lg font-semibold tracking-tight text-foreground">{pendingProposal.title}</h2>
         <div className={`mt-4 flex gap-4 ${single ? "flex-col" : "flex-col md:flex-row"}`}>
           {pendingProposal.options.map((o) => (
-            <OptionCard key={o.id} option={o} single={single} />
+            <OptionCard key={o.id} option={o} single={single} baseVersion={pendingProposal.baseVersion} />
           ))}
         </div>
       </div>

@@ -4,7 +4,10 @@
   "sideEffects": false,
   "type": "module",
   "scripts": {
-    "dev": "vite dev",
+    "dev": "bun --bun node_modules/vite/bin/vite.js",
+    "dev:blender": "node scripts/dev-with-blender.mjs",
+    "blender:worker": "node scripts/blender-worker.mjs",
+    "blender:check": "./.local/blender/Blender.app/Contents/MacOS/Blender --version",
     "build": "vite build",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",

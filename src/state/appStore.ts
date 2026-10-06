@@ -1,6 +1,9 @@
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
+import { applyOperation, type DesignOperation } from "@/engine/operations";
+import { initialModel, type ProjectModel } from "@/engine/model";
 
-export type EntityType = "site" | "level" | "room" | "wall" | "opening";
+export type EntityType = "site" | "building" | "level" | "room" | "wall" | "opening";
 
 export interface TreeNode {
   id: string;
@@ -28,23 +31,32 @@ export interface ProposalOption {
   label: string;
   explanation: string;
   impact: ImpactRow[];
+  operations: DesignOperation[];
 }
 
 export interface Proposal {
   id: string;
   title: string;
   options: ProposalOption[];
+  baseVersion: number;
 }
 
-export type JobStatus = "running" | "queued" | "done" | "failed";
+export type JobStatus = "running" | "queued" | "needs-worker" | "done" | "failed";
 
 export interface Job {
   id: string;
   label: string;
   status: JobStatus;
+  modelVersion?: number;
+  details?: string;
+  artifactUrl?: string;
+  blenderPython?: string;
 }
 
 interface AppState {
+  model: ProjectModel;
+  operationHistory: Array<{ model: ProjectModel; label: string }>;
+  redoHistory: Array<{ model: ProjectModel; label: string }>;
   projectName: string;
   version: number;
   selectedEntityId: string | null;
@@ -61,11 +73,12 @@ interface AppState {
   toggleChat: () => void;
   setProposal: (p: Proposal | null) => void;
   setJobs: (jobs: Job[]) => void;
-  updateJob: (id: string, status: JobStatus) => void;
-  bumpVersion: () => void;
-  setHistory: (canUndo: boolean, canRedo: boolean) => void;
+  patchJob: (id: string, update: Partial<Job>) => void;
   setBriefOpen: (open: boolean) => void;
-  startProject: (brief: string, reply: string) => void;
+  startProject: (brief: string, reply: string, model: ProjectModel, projectName: string) => void;
+  applyDesignOperation: (operation: DesignOperation) => void;
+  undoModel: () => void;
+  redoModel: () => void;
 }
 
 let msgCounter = 0;
@@ -81,7 +94,10 @@ const nameFromBrief = (brief: string) => {
   return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Untitled House";
 };
 
-export const useAppStore = create<AppState>((set) => ({
+export const useAppStore = create<AppState>()(persist((set) => ({
+  model: initialModel,
+  operationHistory: [],
+  redoHistory: [],
   projectName: "Villa Moreno",
   version: 12,
   selectedEntityId: "room-living",
@@ -90,29 +106,13 @@ export const useAppStore = create<AppState>((set) => ({
     {
       id: nextId(),
       role: "assistant",
-      text: "Model loaded at v12. The living room on Level 1 is selected. Tell me what to change — e.g. \"widen the living room to 6 m\".",
-      timestamp: Date.now() - 60_000,
-    },
-    {
-      id: nextId(),
-      role: "user",
-      text: "Add a skylight above the kitchen.",
-      timestamp: Date.now() - 45_000,
-    },
-    {
-      id: nextId(),
-      role: "assistant",
-      text: "I drafted two options for the kitchen skylight. Review the proposal to compare their impact.",
-      timestamp: Date.now() - 40_000,
+      text: "Astra is ready. Select a room or wall, then describe the change or ask for a high-detail Blender pass.",
+      timestamp: Date.now(),
     },
   ],
   pendingProposal: null,
-  jobs: [
-    { id: "job-1", label: "Detailed model", status: "done" },
-    { id: "job-2", label: "Cost estimate v12", status: "done" },
-    { id: "job-3", label: "Daylight analysis", status: "queued" },
-  ],
-  canUndo: true,
+  jobs: [],
+  canUndo: false,
   canRedo: false,
   briefOpen: true,
 
@@ -124,36 +124,79 @@ export const useAppStore = create<AppState>((set) => ({
   toggleChat: () => set((s) => ({ chatOpen: !s.chatOpen })),
   setProposal: (p) => set({ pendingProposal: p }),
   setJobs: (jobs) => set({ jobs }),
-  updateJob: (id, status) =>
-    set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status } : j)) })),
-  bumpVersion: () => set((s) => ({ version: s.version + 1 })),
-  setHistory: (canUndo, canRedo) => set({ canUndo, canRedo }),
+  patchJob: (id, update) => set((s) => ({ jobs: s.jobs.map((job) => (job.id === id ? { ...job, ...update } : job)) })),
   setBriefOpen: (open) => set({ briefOpen: open }),
-  startProject: (brief, reply) => {
+  startProject: (brief, reply, model, projectName) =>
     set({
-      projectName: nameFromBrief(brief),
-      version: 1,
-      selectedEntityId: null,
+      projectName: projectName || nameFromBrief(brief),
+      model,
+      operationHistory: [],
+      redoHistory: [],
+      version: model.version,
+      selectedEntityId: Object.keys(model.rooms)[0] ?? null,
       chatMessages: [
         { id: nextId(), role: "user", text: brief, timestamp: Date.now() - 5_000 },
         { id: nextId(), role: "assistant", text: reply, timestamp: Date.now() },
       ],
       pendingProposal: null,
-      jobs: [
-        { id: "job-brief", label: "Interpreting brief", status: "done" },
-        { id: "job-concept", label: "Concept model", status: "running" },
-        { id: "job-cost", label: "Cost estimate v1", status: "queued" },
-      ],
+      jobs: [],
       canUndo: false,
       canRedo: false,
       briefOpen: false,
-    });
-    const upd = (id: string, status: JobStatus) =>
-      set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status } : j)) }));
-    setTimeout(() => {
-      upd("job-concept", "done");
-      upd("job-cost", "running");
-    }, 3000);
-    setTimeout(() => upd("job-cost", "done"), 5000);
-  },
+    }),
+  applyDesignOperation: (operation) => set((s) => {
+    const result = applyOperation(s.model, operation);
+    return {
+      model: result.model,
+      version: result.model.version,
+      operationHistory: [...s.operationHistory, { model: s.model, label: result.label }],
+      redoHistory: [],
+      canUndo: true,
+      canRedo: false,
+    };
+  }),
+  undoModel: () => set((s) => {
+    const previous = s.operationHistory.at(-1);
+    if (!previous) return {};
+    const model = { ...previous.model, version: s.model.version + 1 };
+    return {
+      model,
+      version: model.version,
+      operationHistory: s.operationHistory.slice(0, -1),
+      redoHistory: [...s.redoHistory, { model: s.model, label: previous.label }],
+      canUndo: s.operationHistory.length > 1,
+      canRedo: true,
+    };
+  }),
+  redoModel: () => set((s) => {
+    const next = s.redoHistory.at(-1);
+    if (!next) return {};
+    const model = { ...next.model, version: s.model.version + 1 };
+    return {
+      model,
+      version: model.version,
+      operationHistory: [...s.operationHistory, { model: s.model, label: next.label }],
+      redoHistory: s.redoHistory.slice(0, -1),
+      canUndo: true,
+      canRedo: s.redoHistory.length > 1,
+    };
+  }),
+}), {
+  name: "happy-maker-guild-project-v1",
+  storage: createJSONStorage(() => localStorage),
+  partialize: (state) => ({
+    model: state.model,
+    operationHistory: state.operationHistory,
+    redoHistory: state.redoHistory,
+    projectName: state.projectName,
+    version: state.version,
+    selectedEntityId: state.selectedEntityId,
+    chatMessages: state.chatMessages,
+    chatOpen: state.chatOpen,
+    pendingProposal: state.pendingProposal,
+    jobs: state.jobs.map(({ blenderPython: _script, ...job }) => job),
+    canUndo: state.canUndo,
+    canRedo: state.canRedo,
+    briefOpen: state.briefOpen,
+  }),
 }));

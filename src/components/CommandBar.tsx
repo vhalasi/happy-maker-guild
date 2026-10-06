@@ -1,7 +1,8 @@
 import { useRef, useState } from "react";
 import { Mic, MicOff, SendHorizonal, MessageSquare, ChevronDown } from "lucide-react";
 import { useAppStore } from "@/state/appStore";
-import { sendDesignRequest } from "@/integration/stubs";
+import { askAstra } from "@/integration/astra.functions";
+import { toast } from "sonner";
 
 export function CommandBar() {
   const { chatMessages, chatOpen, toggleChat, addChatMessage, selectedEntityId } = useAppStore();
@@ -16,11 +17,36 @@ export function CommandBar() {
     setInput("");
     setSending(true);
     addChatMessage({ role: "user", text });
-    const { reply, proposal } = await sendDesignRequest(text, selectedEntityId);
-    addChatMessage({ role: "assistant", text: reply });
-    if (proposal) useAppStore.getState().setProposal(proposal);
-    setSending(false);
-    requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }));
+    const state = useAppStore.getState();
+    try {
+      const result = await askAstra({
+        data: {
+          text,
+          selectedEntityId,
+          modelJson: JSON.stringify(state.model),
+          recentContext: state.chatMessages.slice(-8).map((message) => `${message.role}: ${message.text}`).join("\n"),
+        },
+      });
+      addChatMessage({ role: "assistant", text: result.reply });
+      if (result.proposal) state.setProposal(result.proposal);
+      if (result.blenderJob) {
+        const latest = useAppStore.getState();
+        const stale = latest.model.version !== result.blenderJob.modelVersion;
+        state.setJobs([
+          ...latest.jobs,
+          { id: result.blenderJob.jobId, label: result.blenderJob.title, status: stale ? "failed" : result.blenderJob.status, modelVersion: result.blenderJob.modelVersion, details: stale ? `Generated from v${result.blenderJob.modelVersion}; current model is v${latest.model.version}. Generate again.` : result.blenderJob.generation_brief, ...(!stale && result.blenderJob.blenderPython ? { blenderPython: result.blenderJob.blenderPython } : {}) },
+        ]);
+        if (stale) toast.warning("The model changed while Astra was preparing this job. Generate again for the latest version.");
+        else if (result.blenderJob.status === "needs-worker") toast.warning("Astra wrote the Blender script. Connect a Blender worker to render it.");
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Astra request failed.";
+      addChatMessage({ role: "assistant", text: `I couldn't complete that request: ${message}` });
+      toast.error("Astra request failed");
+    } finally {
+      setSending(false);
+      requestAnimationFrame(() => scrollRef.current?.scrollTo({ top: 99999, behavior: "smooth" }));
+    }
   };
 
   const toggleMic = () => {

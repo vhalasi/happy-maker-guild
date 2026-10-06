@@ -1,11 +1,10 @@
 /**
- * Integration stubs for Vibe Architect.
- *
- * All UI code calls these typed functions. Later, the real implementations
- * will live in src/engine, src/scene, src/xr and src/ai — only this file
- * changes, never the components.
+ * Model-backed adapters for tree and inspector data. XR remains unimplemented.
  */
-import type { EntityType, Proposal, TreeNode } from "@/state/appStore";
+import type { EntityType, TreeNode } from "@/state/appStore";
+import { useAppStore } from "@/state/appStore";
+import { getRoomArea, getWallLength } from "@/engine/operations";
+import type { ProjectModel } from "@/engine/model";
 
 export interface EntityProperties {
   id: string;
@@ -15,158 +14,62 @@ export interface EntityProperties {
   material: string;
 }
 
-export interface Op {
-  kind: "move" | "resize" | "add" | "remove" | "set-material";
-  targetId: string;
-  payload: Record<string, unknown>;
+function toTree(model: ProjectModel): TreeNode {
+  return {
+    id: model.site.id,
+    type: "site",
+    label: `Site — ${model.site.name}`,
+    children: model.site.buildingIds.flatMap((buildingId) => {
+      const building = model.buildings[buildingId];
+      if (!building) return [];
+      return [{
+        id: building.id,
+        type: "building" as const,
+        label: building.name,
+        children: building.levelIds.flatMap((levelId) => {
+          const level = model.levels[levelId];
+          if (!level) return [];
+          return [{
+            id: level.id,
+            type: "level" as const,
+            label: `Level — ${level.name}`,
+            children: [
+              ...level.roomIds.flatMap((id) => { const room = model.rooms[id]; return room ? [{ id: room.id, type: "room" as const, label: room.name }] : []; }),
+              ...level.wallIds.flatMap((id) => { const wall = model.walls[id]; return wall ? [{ id: wall.id, type: "wall" as const, label: wall.name }] : []; }),
+              ...Object.values(model.openings).filter((opening) => model.walls[opening.wallId]?.levelId === level.id).map((opening) => ({ id: opening.id, type: "opening" as const, label: opening.name })),
+            ],
+          }];
+        }),
+      }];
+    }),
+  };
 }
 
-const TREE: TreeNode = {
-  id: "site",
-  type: "site",
-  label: "Site — Moreno parcel",
-  children: [
-    {
-      id: "level-0",
-      type: "level",
-      label: "Level 0 — Ground",
-      children: [
-        { id: "room-living", type: "room", label: "Living room" },
-        { id: "room-kitchen", type: "room", label: "Kitchen" },
-        { id: "wall-w-01", type: "wall", label: "Wall W-01 (south)" },
-        { id: "wall-w-02", type: "wall", label: "Wall W-02 (east)" },
-        { id: "opening-o-01", type: "opening", label: "Window O-01" },
-        { id: "opening-o-02", type: "opening", label: "Door O-02" },
-      ],
-    },
-    {
-      id: "level-1",
-      type: "level",
-      label: "Level 1 — Upper",
-      children: [
-        { id: "room-bedroom", type: "room", label: "Bedroom" },
-        { id: "room-bath", type: "room", label: "Bathroom" },
-        { id: "wall-w-10", type: "wall", label: "Wall W-10" },
-        { id: "opening-o-10", type: "opening", label: "Window O-10" },
-      ],
-    },
-  ],
-};
-
-const ENTITIES: Record<string, EntityProperties> = {
-  site: { id: "site", type: "site", label: "Site — Moreno parcel", dimensions: { width: 22, length: 34 }, material: "—" },
-  "level-0": { id: "level-0", type: "level", label: "Level 0 — Ground", dimensions: { height: 2.8, area: 96 }, material: "—" },
-  "level-1": { id: "level-1", type: "level", label: "Level 1 — Upper", dimensions: { height: 2.6, area: 52 }, material: "—" },
-  "room-living": { id: "room-living", type: "room", label: "Living room", dimensions: { width: 5.4, length: 7.2, height: 2.8, area: 38.9 }, material: "Oak parquet" },
-  "room-kitchen": { id: "room-kitchen", type: "room", label: "Kitchen", dimensions: { width: 3.6, length: 4.1, height: 2.8, area: 14.8 }, material: "Polished concrete" },
-  "room-bedroom": { id: "room-bedroom", type: "room", label: "Bedroom", dimensions: { width: 3.9, length: 4.4, height: 2.6, area: 17.2 }, material: "Oak parquet" },
-  "room-bath": { id: "room-bath", type: "room", label: "Bathroom", dimensions: { width: 2.4, length: 3.0, height: 2.6, area: 7.2 }, material: "Ceramic tile" },
-  "wall-w-01": { id: "wall-w-01", type: "wall", label: "Wall W-01 (south)", dimensions: { length: 8.2, height: 2.8 }, material: "Reinforced concrete 20 cm" },
-  "wall-w-02": { id: "wall-w-02", type: "wall", label: "Wall W-02 (east)", dimensions: { length: 6.4, height: 2.8 }, material: "Reinforced concrete 20 cm" },
-  "wall-w-10": { id: "wall-w-10", type: "wall", label: "Wall W-10", dimensions: { length: 5.1, height: 2.6 }, material: "Timber stud 12 cm" },
-  "opening-o-01": { id: "opening-o-01", type: "opening", label: "Window O-01", dimensions: { width: 2.4, height: 1.6 }, material: "Triple-glazed aluminium" },
-  "opening-o-02": { id: "opening-o-02", type: "opening", label: "Door O-02", dimensions: { width: 0.9, height: 2.1 }, material: "Oak veneer" },
-  "opening-o-10": { id: "opening-o-10", type: "opening", label: "Window O-10", dimensions: { width: 1.8, height: 1.2 }, material: "Triple-glazed aluminium" },
-};
+function getModelEntity(model: ProjectModel, id: string): EntityProperties | null {
+  const room = model.rooms[id];
+  if (room) return { id, type: "room", label: room.name, dimensions: { width: room.width, length: room.length, height: room.height, area: getRoomArea(model, id) }, material: room.floorMaterial };
+  const wall = model.walls[id];
+  if (wall) return { id, type: "wall", label: wall.name, dimensions: { length: getWallLength(model, id), height: wall.height }, material: wall.material };
+  const opening = model.openings[id];
+  if (opening) return { id, type: "opening", label: opening.name, dimensions: { width: opening.width, height: opening.height }, material: opening.material };
+  const level = model.levels[id];
+  if (level) return { id, type: "level", label: level.name, dimensions: { height: level.height, area: level.roomIds.reduce((sum, roomId) => sum + getRoomArea(model, roomId), 0) }, material: "—" };
+  const building = model.buildings[id];
+  if (building) return { id, type: "building", label: building.name, dimensions: { area: Object.values(model.rooms).filter((item) => building.levelIds.includes(item.levelId)).reduce((sum, item) => sum + getRoomArea(model, item.id), 0) }, material: building.roofMaterial };
+  if (id === model.site.id) return { id, type: "site", label: `Site — ${model.site.name}`, dimensions: { width: model.site.width, length: model.site.length }, material: "—" };
+  return null;
+}
 
 const delay = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 export async function getProjectTree(): Promise<TreeNode> {
   await delay(60);
-  return TREE;
+  return toTree(useAppStore.getState().model);
 }
 
 export async function getEntity(id: string): Promise<EntityProperties | null> {
   await delay(40);
-  return ENTITIES[id] ?? null;
-}
-
-export async function applyOps(ops: Op[]): Promise<{ applied: number; newVersion: number }> {
-  await delay(120);
-  return { applied: ops.length, newVersion: 13 };
-}
-
-export async function undo(): Promise<{ ok: boolean; version: number }> {
-  await delay(80);
-  return { ok: true, version: 11 };
-}
-
-export async function redo(): Promise<{ ok: boolean; version: number }> {
-  await delay(80);
-  return { ok: true, version: 12 };
-}
-
-const SKYLIGHT_PROPOSAL: Proposal = {
-  id: "prop-001",
-  title: "Add skylight above kitchen",
-  options: [
-    {
-      id: "prop-001-a",
-      label: "Option A — Fixed skylight 120×120",
-      explanation:
-        "A fixed 120×120 cm skylight centred over the kitchen island. Maximises daylight, no ventilation.",
-      impact: [
-        { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
-        { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
-        { item: "Cable", before: "412 m", after: "418 m", delta: "+6" },
-        { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
-        { item: "Est. cost", before: "486'000 CHF", after: "490'200 CHF", delta: "+4'200" },
-      ],
-    },
-    {
-      id: "prop-001-b",
-      label: "Option B — Venting skylight 100×150",
-      explanation:
-        "A venting 100×150 cm skylight near the hob. Adds passive ventilation, slightly higher cost.",
-      impact: [
-        { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
-        { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
-        { item: "Cable", before: "412 m", after: "424 m", delta: "+12" },
-        { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
-        { item: "Est. cost", before: "486'000 CHF", after: "492'800 CHF", delta: "+6'800" },
-      ],
-    },
-  ],
-};
-
-export async function sendDesignRequest(
-  text: string,
-  selectedEntityId: string | null,
-): Promise<{ reply: string; proposal: Proposal | null }> {
-  await delay(600);
-  // Demo behaviour: any request mentioning a skylight returns the mock proposal.
-  if (/skylight/i.test(text)) {
-    return {
-      reply: "I drafted two skylight options for the kitchen. Compare their impact and accept the one you prefer.",
-      proposal: SKYLIGHT_PROPOSAL,
-    };
-  }
-  return {
-    reply: `Understood — "${text}"${selectedEntityId ? ` (context: ${selectedEntityId})` : ""}. The AI design engine is stubbed for now; proposals will appear here once src/ai is wired in.`,
-    proposal: null,
-  };
-}
-
-export async function startBrief(brief: string): Promise<{ reply: string }> {
-  await delay(900);
-  return {
-    reply: `Got it — I've started a project from your brief: "${brief}". The concept model is being interpreted. From here, refine by chat — try "add a skylight above the kitchen" to see a proposal with two options.`,
-  };
-}
-
-export async function acceptProposal(id: string): Promise<{ ok: boolean; newVersion: number }> {
-  await delay(150);
-  return { ok: true, newVersion: 13 };
-}
-
-export async function rejectProposal(id: string): Promise<{ ok: boolean }> {
-  await delay(80);
-  return { ok: true };
-}
-
-export async function requestDetailedModel(): Promise<{ jobId: string }> {
-  await delay(100);
-  return { jobId: `job-${Date.now()}` };
+  return getModelEntity(useAppStore.getState().model, id);
 }
 
 export async function enterXR(): Promise<{ ok: boolean; reason?: string }> {

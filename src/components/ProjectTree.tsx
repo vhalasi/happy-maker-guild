@@ -1,10 +1,11 @@
 import { useEffect, useState } from "react";
-import { Mountain, Layers, Square, BrickWall, DoorOpen, ChevronRight, ChevronDown } from "lucide-react";
+import { Mountain, Layers, Square, BrickWall, DoorOpen, Box, ChevronRight, ChevronDown } from "lucide-react";
 import { getProjectTree } from "@/integration/stubs";
 import { useAppStore, type TreeNode, type EntityType } from "@/state/appStore";
 
 const ICONS: Record<EntityType, typeof Square> = {
   site: Mountain,
+  building: Box,
   level: Layers,
   room: Square,
   wall: BrickWall,
@@ -47,10 +48,11 @@ function TreeItem({ node, depth }: { node: TreeNode; depth: number }) {
 
 export function ProjectTree() {
   const [tree, setTree] = useState<TreeNode | null>(null);
+  const version = useAppStore((s) => s.model.version);
 
   useEffect(() => {
     getProjectTree().then(setTree);
-  }, []);
+  }, [version]);
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-card">
