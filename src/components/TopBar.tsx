@@ -1,10 +1,10 @@
-import { Redo2, Undo2, Box, Sparkles } from "lucide-react";
+import { Redo2, Undo2, Box, Sparkles, Plus } from "lucide-react";
 import { useAppStore } from "@/state/appStore";
 import { undo, redo, requestDetailedModel, enterXR } from "@/integration/stubs";
 import { toast } from "sonner";
 
 export function TopBar() {
-  const { projectName, version, canUndo, canRedo, bumpVersion, setHistory, setJobs, jobs } =
+  const { projectName, version, canUndo, canRedo, bumpVersion, setHistory, setJobs, jobs, setBriefOpen } =
     useAppStore();
 
   const handleUndo = async () => {
@@ -68,6 +68,13 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex items-center gap-2">
+        <button
+          onClick={() => setBriefOpen(true)}
+          className="flex items-center gap-1.5 rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Plus className="h-3.5 w-3.5" />
+          New idea
+        </button>
         <button
           onClick={handleEnterXR}
           className="rounded-sm border border-border px-3 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"

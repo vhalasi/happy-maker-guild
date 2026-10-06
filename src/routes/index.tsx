@@ -6,6 +6,7 @@ import { Inspector } from "@/components/Inspector";
 import { CommandBar } from "@/components/CommandBar";
 import { ProposalDialog } from "@/components/ProposalDialog";
 import { JobsIndicator } from "@/components/JobsIndicator";
+import { BriefDialog } from "@/components/BriefDialog";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -43,6 +44,7 @@ function Index() {
       </div>
       <CommandBar />
       <ProposalDialog />
+      <BriefDialog />
     </div>
   );
 }
