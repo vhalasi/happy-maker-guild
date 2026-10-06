@@ -108,7 +108,7 @@ export const useAppStore = create<AppState>((set) => ({
   ],
   pendingProposal: null,
   jobs: [
-    { id: "job-1", label: "Detailed model", status: "running" },
+    { id: "job-1", label: "Detailed model", status: "done" },
     { id: "job-2", label: "Cost estimate v12", status: "done" },
     { id: "job-3", label: "Daylight analysis", status: "queued" },
   ],
@@ -129,7 +129,7 @@ export const useAppStore = create<AppState>((set) => ({
   bumpVersion: () => set((s) => ({ version: s.version + 1 })),
   setHistory: (canUndo, canRedo) => set({ canUndo, canRedo }),
   setBriefOpen: (open) => set({ briefOpen: open }),
-  startProject: (brief, reply) =>
+  startProject: (brief, reply) => {
     set({
       projectName: nameFromBrief(brief),
       version: 1,
@@ -147,5 +147,13 @@ export const useAppStore = create<AppState>((set) => ({
       canUndo: false,
       canRedo: false,
       briefOpen: false,
-    }),
+    });
+    const upd = (id: string, status: JobStatus) =>
+      set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status } : j)) }));
+    setTimeout(() => {
+      upd("job-concept", "done");
+      upd("job-cost", "running");
+    }, 3000);
+    setTimeout(() => upd("job-cost", "done"), 5000);
+  },
 }));
