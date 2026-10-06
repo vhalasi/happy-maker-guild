@@ -3,7 +3,7 @@ import { OrbitControls, Grid } from "@react-three/drei";
 import { useAppStore } from "@/state/appStore";
 
 function House() {
-  const version = useAppStore((s) => (s as unknown as { version?: number }).version ?? 1);
+  const version = useAppStore((s) => s.version);
   const showSkylight = version > 1;
   return (
     <group>
