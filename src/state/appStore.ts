@@ -71,6 +71,16 @@ interface AppState {
 let msgCounter = 0;
 const nextId = () => `msg-${++msgCounter}`;
 
+const nameFromBrief = (brief: string) => {
+  const words = brief
+    .replace(/[^\w\s-]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Untitled House";
+};
+
 export const useAppStore = create<AppState>((set) => ({
   projectName: "Villa Moreno",
   version: 12,
