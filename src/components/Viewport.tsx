@@ -6,14 +6,15 @@ import { getWallLength } from "@/engine/operations";
 import type { Opening, Wall } from "@/engine/model";
 
 type V3 = [number, number, number];
+type SceneNode = { name: string; parent: SceneNode | null };
 
 function DetailedAsset({ url, onSelect, validIds }: { url: string; onSelect: (id: string | null) => void; validIds: Set<string> }) {
   const { scene } = useGLTF(url);
   return h("primitive", {
     object: scene,
-    onClick: (event: { stopPropagation: () => void; object: { name: string; parent: { name: string; parent?: unknown } | null } }) => {
+    onClick: (event: { stopPropagation: () => void; object: SceneNode }) => {
       event.stopPropagation();
-      let node: { name: string; parent: { name: string; parent?: unknown } | null } | null = event.object;
+      let node: SceneNode | null = event.object;
       while (node && !validIds.has(node.name)) node = node.parent;
       onSelect(node?.name ?? null);
     },

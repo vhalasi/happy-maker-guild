@@ -189,7 +189,7 @@ async function submitBlenderDraft(job: BlenderDraft, model: ProjectModel) {
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   const workerToken = serverEnv("BLENDER_WORKER_TOKEN");
-  if (workerToken) headers.Authorization = `Bearer ${workerToken}`;
+  if (workerToken) headers["Authorization"] = `Bearer ${workerToken}`;
   const workerResponse = await fetch(workerUrl, {
     method: "POST",
     headers,
@@ -338,6 +338,7 @@ export const startAstraProject = createServerFn({ method: "POST" })
         model.rooms[roomId] = room;
         roomIds.push(roomId);
         const wallsBySide: Record<string, string> = {};
+        const edgeStartBySide: Record<string, [number, number]> = {};
         const edges: Array<["north" | "east" | "south" | "west", [number, number], [number, number]]> = [
           ["north", [bounds.left, bounds.near], [bounds.right, bounds.near]],
           ["east", [bounds.right, bounds.near], [bounds.right, bounds.far]],
@@ -357,6 +358,7 @@ export const startAstraProject = createServerFn({ method: "POST" })
           const wall = model.walls[wallId];
           if (wall && !wall.roomIds.includes(roomId)) wall.roomIds.push(roomId);
           wallsBySide[side] = wallId;
+          edgeStartBySide[side] = start;
           room.wallIds.push(wallId);
         }
         for (const [openingIndex, openingDraft] of roomDraft.openings.entries()) {
@@ -366,7 +368,8 @@ export const startAstraProject = createServerFn({ method: "POST" })
             throw new Error(`${openingDraft.name} does not fit its wall. Ask Astra to revise the concept.`);
           }
           const wallLength = Math.hypot(wall.end[0] - wall.start[0], wall.end[1] - wall.start[1]);
-          const sameDirection = Math.hypot(wall.start[0] - start[0], wall.start[1] - start[1]) < 0.01;
+          const edgeStart = edgeStartBySide[openingDraft.side] ?? wall.start;
+          const sameDirection = Math.hypot(wall.start[0] - edgeStart[0], wall.start[1] - edgeStart[1]) < 0.01;
           const canonicalOffset = sameDirection ? openingDraft.offset : wallLength - openingDraft.offset - openingDraft.width;
           const duplicate = wall.openingIds.map((id) => model.openings[id]).find((existing) => existing && existing.kind === openingDraft.kind && Math.abs(existing.offset - canonicalOffset) < 0.02 && Math.abs(existing.width - openingDraft.width) < 0.02 && Math.abs(existing.height - openingDraft.height) < 0.02);
           if (duplicate) continue;
@@ -406,7 +409,7 @@ export const getBlenderJobStatus = createServerFn({ method: "GET" })
     if (!workerUrl) throw new Error("No Blender worker is configured.");
     const headers: Record<string, string> = {};
     const workerToken = serverEnv("BLENDER_WORKER_TOKEN");
-    if (workerToken) headers.Authorization = `Bearer ${workerToken}`;
+    if (workerToken) headers["Authorization"] = `Bearer ${workerToken}`;
     const endpoint = `${workerUrl.replace(/\/$/, "")}/${encodeURIComponent(data.jobId)}`;
     const response = await fetch(endpoint, { headers });
     if (!response.ok) throw new Error(`Blender worker status request failed (${response.status}).`);
