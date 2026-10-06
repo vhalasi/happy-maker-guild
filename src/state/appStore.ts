@@ -94,38 +94,6 @@ export const useAppStore = create<AppState>((set) => ({
     },
   ],
   pendingProposal: null,
-  _unusedProposalExample: {
-    id: "prop-001",
-    title: "Add skylight above kitchen",
-    options: [
-      {
-        id: "prop-001-a",
-        label: "Option A — Fixed skylight 120×120",
-        explanation:
-          "A fixed 120×120 cm skylight centred over the kitchen island. Maximises daylight, no ventilation.",
-        impact: [
-          { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
-          { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
-          { item: "Cable", before: "412 m", after: "418 m", delta: "+6" },
-          { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
-          { item: "Est. cost", before: "486'000 CHF", after: "490'200 CHF", delta: "+4'200" },
-        ],
-      },
-      {
-        id: "prop-001-b",
-        label: "Option B — Venting skylight 100×150",
-        explanation:
-          "A venting 100×150 cm skylight near the hob. Adds passive ventilation, slightly higher cost.",
-        impact: [
-          { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
-          { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
-          { item: "Cable", before: "412 m", after: "424 m", delta: "+12" },
-          { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
-          { item: "Est. cost", before: "486'000 CHF", after: "492'800 CHF", delta: "+6'800" },
-        ],
-      },
-    ],
-  },
   jobs: [
     { id: "job-1", label: "Detailed model", status: "running" },
     { id: "job-2", label: "Cost estimate v12", status: "done" },

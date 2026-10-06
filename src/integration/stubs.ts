@@ -96,11 +96,51 @@ export async function redo(): Promise<{ ok: boolean; version: number }> {
   return { ok: true, version: 12 };
 }
 
+const SKYLIGHT_PROPOSAL: Proposal = {
+  id: "prop-001",
+  title: "Add skylight above kitchen",
+  options: [
+    {
+      id: "prop-001-a",
+      label: "Option A — Fixed skylight 120×120",
+      explanation:
+        "A fixed 120×120 cm skylight centred over the kitchen island. Maximises daylight, no ventilation.",
+      impact: [
+        { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
+        { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
+        { item: "Cable", before: "412 m", after: "418 m", delta: "+6" },
+        { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
+        { item: "Est. cost", before: "486'000 CHF", after: "490'200 CHF", delta: "+4'200" },
+      ],
+    },
+    {
+      id: "prop-001-b",
+      label: "Option B — Venting skylight 100×150",
+      explanation:
+        "A venting 100×150 cm skylight near the hob. Adds passive ventilation, slightly higher cost.",
+      impact: [
+        { item: "Floor area", before: "148.0 m²", after: "148.0 m²", delta: "±0.0" },
+        { item: "Wall length", before: "96.4 m", after: "96.4 m", delta: "±0.0" },
+        { item: "Cable", before: "412 m", after: "424 m", delta: "+12" },
+        { item: "Pipe", before: "88 m", after: "88 m", delta: "±0" },
+        { item: "Est. cost", before: "486'000 CHF", after: "492'800 CHF", delta: "+6'800" },
+      ],
+    },
+  ],
+};
+
 export async function sendDesignRequest(
   text: string,
   selectedEntityId: string | null,
 ): Promise<{ reply: string; proposal: Proposal | null }> {
   await delay(600);
+  // Demo behaviour: any request mentioning a skylight returns the mock proposal.
+  if (/skylight/i.test(text)) {
+    return {
+      reply: "I drafted two skylight options for the kitchen. Compare their impact and accept the one you prefer.",
+      proposal: SKYLIGHT_PROPOSAL,
+    };
+  }
   return {
     reply: `Understood — "${text}"${selectedEntityId ? ` (context: ${selectedEntityId})` : ""}. The AI design engine is stubbed for now; proposals will appear here once src/ai is wired in.`,
     proposal: null,
