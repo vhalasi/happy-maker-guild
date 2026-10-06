@@ -1,5 +1,6 @@
 import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
+import { createLovableAiGatewayRunIdFetch } from "./gateway-run-id";
 import { applyOperation, calculateQuantities, validateModel, type DesignOperation } from "@/engine/operations";
 import type { ProjectModel } from "@/engine/model";
 
@@ -158,25 +159,74 @@ function serverEnv(name: string) {
   return global.process?.env?.[name] ?? vite[name];
 }
 
-async function callAstra(input: unknown, tools: readonly unknown[]): Promise<ResponsesPayload> {
-  const apiKey = serverEnv("OPENAI_API_KEY");
-  if (!apiKey) throw new Error("Astra is not configured on the server. Add OPENAI_API_KEY to the server environment.");
+const GATEWAY_URL = "https://ai.gateway.lovable.dev/v1/responses";
 
-  const response = await fetch("https://api.openai.com/v1/responses", {
+async function callAstra(input: unknown, tools: readonly unknown[]): Promise<ResponsesPayload> {
+  const apiKey = serverEnv("LOVABLE_API_KEY");
+  if (!apiKey) throw new Error("Astra is not configured on the server. The Lovable AI key is missing from the server environment.");
+
+  const gateway = createLovableAiGatewayRunIdFetch();
+  const response = await gateway.fetch(GATEWAY_URL, {
     method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${apiKey}`,
+      "Lovable-API-Key": apiKey,
+      "X-Lovable-AIG-SDK": "fetch",
+    },
     body: JSON.stringify({
-      model: "gpt-6-astra",
-      reasoning: { effort: "max" },
-      max_output_tokens: 24_000,
+      model: "openai/gpt-6-astra",
+      reasoning: { effort: "high", summary: "auto" },
+      include: ["reasoning.encrypted_content"],
       input,
       tools,
       tool_choice: "auto",
+      stream: true,
+      store: false,
     }),
   });
-  const payload = (await response.json()) as ResponsesPayload;
-  if (!response.ok) throw new Error(payload.error?.message ?? `Astra request failed (${response.status}).`);
-  return payload;
+  if (!response.ok || !response.body) {
+    const text = await response.text().catch(() => "");
+    let message = `Astra request failed (${response.status}).`;
+    try {
+      const parsed = JSON.parse(text) as { error?: { message?: string }; message?: string };
+      message = parsed.error?.message ?? parsed.message ?? message;
+    } catch {
+      if (text) message = `${message} ${text.slice(0, 300)}`;
+    }
+    throw new Error(message);
+  }
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let completed: ResponsesPayload | null = null;
+  let failure: string | null = null;
+  while (completed === null && failure === null) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buffer += decoder.decode(value, { stream: true });
+    let index = buffer.indexOf("\n");
+    while (index >= 0 && completed === null && failure === null) {
+      const line = buffer.slice(0, index).trim();
+      buffer = buffer.slice(index + 1);
+      index = buffer.indexOf("\n");
+      if (!line.startsWith("data:")) continue;
+      const data = line.slice(5).trim();
+      if (!data || data === "[DONE]") continue;
+      try {
+        const event = JSON.parse(data) as { type?: string; response?: ResponsesPayload; error?: { message?: string } };
+        if (event.type === "response.completed" && event.response) completed = event.response;
+        else if (event.type === "response.failed") failure = event.response?.error?.message ?? "Astra request failed.";
+        else if (event.type === "error") failure = event.error?.message ?? "Astra request failed.";
+      } catch {
+        // Ignore malformed SSE lines.
+      }
+    }
+  }
+  if (failure) throw new Error(failure);
+  if (!completed) throw new Error("Astra returned an incomplete response. Please try again.");
+  return completed;
 }
 
 type BlenderDraft = { title: string; generation_brief: string; fidelity_notes: string; affected_entity_ids: string[]; blender_python: string };
