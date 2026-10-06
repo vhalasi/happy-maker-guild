@@ -54,6 +54,7 @@ interface AppState {
   jobs: Job[];
   canUndo: boolean;
   canRedo: boolean;
+  briefOpen: boolean;
 
   selectEntity: (id: string | null) => void;
   addChatMessage: (msg: Omit<ChatMessage, "id" | "timestamp">) => void;
@@ -63,10 +64,22 @@ interface AppState {
   updateJob: (id: string, status: JobStatus) => void;
   bumpVersion: () => void;
   setHistory: (canUndo: boolean, canRedo: boolean) => void;
+  setBriefOpen: (open: boolean) => void;
+  startProject: (brief: string, reply: string) => void;
 }
 
 let msgCounter = 0;
 const nextId = () => `msg-${++msgCounter}`;
+
+const nameFromBrief = (brief: string) => {
+  const words = brief
+    .replace(/[^\w\s-]/g, "")
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 3)
+    .join(" ");
+  return words ? words.charAt(0).toUpperCase() + words.slice(1) : "Untitled House";
+};
 
 export const useAppStore = create<AppState>((set) => ({
   projectName: "Villa Moreno",
@@ -101,6 +114,7 @@ export const useAppStore = create<AppState>((set) => ({
   ],
   canUndo: true,
   canRedo: false,
+  briefOpen: true,
 
   selectEntity: (id) => set({ selectedEntityId: id }),
   addChatMessage: (msg) =>
@@ -114,4 +128,24 @@ export const useAppStore = create<AppState>((set) => ({
     set((s) => ({ jobs: s.jobs.map((j) => (j.id === id ? { ...j, status } : j)) })),
   bumpVersion: () => set((s) => ({ version: s.version + 1 })),
   setHistory: (canUndo, canRedo) => set({ canUndo, canRedo }),
+  setBriefOpen: (open) => set({ briefOpen: open }),
+  startProject: (brief, reply) =>
+    set({
+      projectName: nameFromBrief(brief),
+      version: 1,
+      selectedEntityId: null,
+      chatMessages: [
+        { id: nextId(), role: "user", text: brief, timestamp: Date.now() - 5_000 },
+        { id: nextId(), role: "assistant", text: reply, timestamp: Date.now() },
+      ],
+      pendingProposal: null,
+      jobs: [
+        { id: "job-brief", label: "Interpreting brief", status: "done" },
+        { id: "job-concept", label: "Concept model", status: "running" },
+        { id: "job-cost", label: "Cost estimate v1", status: "queued" },
+      ],
+      canUndo: false,
+      canRedo: false,
+      briefOpen: false,
+    }),
 }));
