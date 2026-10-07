@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createLovableAiGatewayRunIdFetch } from "./gateway-run-id";
 import { applyOperation, calculateQuantities, validateModel, type DesignOperation } from "@/engine/operations";
+import { validateBuildingContinuity } from "@/engine/architecture-checks";
 import type { ProjectModel } from "@/engine/model";
 
 const designInput = z.object({
@@ -342,7 +343,7 @@ export const startAstraProject = createServerFn({ method: "POST" })
   .validator(briefInput)
   .handler(async ({ data }) => {
     const response = await callAstra([
-      { role: "system", content: "You are the lead residential architect for Vibe Architect. Translate the user's brief and any supplied sketch or floor-plan images into a thoughtful, coherent first-pass floor plan. Read dimension annotations and spatial relationships from images when legible, and flag uncertainty in design_notes rather than inventing certainty. Reason about room adjacencies, circulation, daylight and privacy. Use practical metre dimensions; place adjacent rooms so their edges align. Include well-positioned doors and windows with realistic dimensions, clearances, sill heights, and wall offsets. Put windows only on exterior walls; use doors for sensible circulation and avoid conflicting openings between rooms. Keep the number of rooms and floors faithful to the brief. Return a concept only, never claim regulatory compliance. Use the tool to provide the structured layout." },
+      { role: "system", content: "You are the lead residential architect for Vibe Architect. Translate the user's brief and any supplied sketch or floor-plan images into a thoughtful, coherent first-pass floor plan. Read dimension annotations and spatial relationships from images when legible, and flag uncertainty in design_notes rather than inventing certainty. Reason about room adjacencies, circulation, daylight and privacy. Use practical metre dimensions; place adjacent rooms so their edges align. Every storey must be one connected footprint, not scattered room boxes. Tile rooms into a compact rectangle using consistent bay widths and shared full-length boundaries wherever possible. Include a connected entrance, corridor or hall and an aligned staircase zone for multiple storeys. Keep upper rooms entirely within the floor footprint beneath, with aligned load-bearing perimeter walls; do not invent unsupported cantilevers. Ground elevation is zero and each upper elevation equals the previous elevation plus its height. Include well-positioned doors and windows with realistic dimensions, clearances, sill heights, and wall offsets. Put windows only on exterior walls; use doors for sensible circulation and avoid conflicting openings between rooms. Keep the number of rooms and floors faithful to the brief. Return a concept only, never claim regulatory compliance. Use the tool to provide the structured layout." },
       { role: "user", content: [
         { type: "input_text", text: `Create a first concept for this brief. Use a site width and length that fit the requested home; the house footprint must fit inside the site.\n\n${data.brief}` },
         ...data.imageDataUrls.map((image_url) => ({ type: "input_image", image_url })),
@@ -364,6 +365,8 @@ export const startAstraProject = createServerFn({ method: "POST" })
     concept.levels.forEach((level, i) => {
       level.name ||= `Level ${i + 1}`;
       level.height = Math.min(Math.max(num(level.height, 3), 2.4), 8);
+      const previous = concept.levels[i - 1];
+      level.elevation = previous ? previous.elevation + previous.height : 0;
       level.rooms.forEach((room, j) => {
         room.name ||= `Room ${j + 1}`;
         room.x = num(room.x, 0);
@@ -473,6 +476,7 @@ export const startAstraProject = createServerFn({ method: "POST" })
       building.levelIds.push(levelId);
     }
     validateModel(model);
+    validateBuildingContinuity(model);
     return { projectName: concept.building_name, designNotes: concept.design_notes, model };
   });
 
