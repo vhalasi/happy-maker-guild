@@ -186,7 +186,7 @@ export function Viewport() {
   const modelVersion = useAppStore((s) => s.model.version);
   return (
     <div id="viewport-root" className="relative min-w-0 flex-1 bg-background">
-      {palette && h(Canvas, { shadows: true, dpr: [1, 1.5], camera: { position: [17, 12, 17], fov: 42 }, gl: { antialias: true }, onPointerMissed: () => useAppStore.getState().selectEntity(null) }, h(Suspense, { fallback: null }, h(Scene, { palette, exterior })))}
+      {palette && h(Canvas, { shadows: true, frameloop: "demand", dpr: 1, camera: { position: [17, 12, 17], fov: 42 }, gl: { antialias: true }, onPointerMissed: () => useAppStore.getState().selectEntity(null) }, h(Suspense, { fallback: null }, h(Scene, { palette, exterior })))}
       <div className="absolute right-3 top-3 flex gap-1 rounded-md border border-border bg-background/90 p-1">
         <Button size="sm" variant={exterior ? "secondary" : "ghost"} onClick={() => setExterior(true)}><Box className="h-3.5 w-3.5" />Exterior</Button>
         <Button size="sm" variant={!exterior ? "secondary" : "ghost"} onClick={() => setExterior(false)}><Layers className="h-3.5 w-3.5" />Open roof</Button>

@@ -9,6 +9,7 @@ import { JobsIndicator } from "@/components/JobsIndicator";
 import { BriefDialog } from "@/components/BriefDialog";
 
 export const Route = createFileRoute("/")({
+  ssr: false,
   head: () => ({
     meta: [
       { title: "Vibe Architect — Design a house by talking to AI" },
