@@ -2,6 +2,7 @@ import { createServerFn } from "@tanstack/react-start";
 import { z } from "zod";
 import { createLovableAiGatewayRunIdFetch } from "./gateway-run-id";
 import { applyOperation, calculateQuantities, validateModel, type DesignOperation } from "@/engine/operations";
+import { validateBuildingContinuity } from "@/engine/architecture-checks";
 import type { ProjectModel } from "@/engine/model";
 
 const designInput = z.object({
@@ -473,6 +474,7 @@ export const startAstraProject = createServerFn({ method: "POST" })
       building.levelIds.push(levelId);
     }
     validateModel(model);
+    validateBuildingContinuity(model);
     return { projectName: concept.building_name, designNotes: concept.design_notes, model };
   });
 

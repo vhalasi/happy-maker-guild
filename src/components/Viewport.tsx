@@ -7,7 +7,7 @@ import { Box, Layers } from "lucide-react";
 import { Color, DoubleSide, RepeatWrapping, SRGBColorSpace, CanvasTexture } from "three";
 import oakImage from "@/assets/oak-floor.jpg";
 import plasterImage from "@/assets/mineral-plaster.jpg";
-import type { Opening, Wall } from "@/engine/model";
+import type { Opening, Wall, Level } from "@/engine/model";
 
 type Palette = { plaster: string; timber: string; concrete: string; metal: string; glass: string; brass: string; selection: string; ground: string; paving: string; sky: string; sun: string; white: string };
 function usePalette() {
@@ -151,7 +151,7 @@ function Scene({ palette, exterior }: { palette: Palette; exterior: boolean }) {
   ]);
 
   const roofNodes = Object.values(model.buildings).flatMap((building) => {
-    const top = building.levelIds.map((id) => model.levels[id]).filter(Boolean).sort((a, b) => b.elevation - a.elevation)[0];
+    const top = building.levelIds.map((id) => model.levels[id]).filter((level): level is Level => Boolean(level)).sort((a, b) => b.elevation - a.elevation)[0];
     if (!top) return [];
     return top.roomIds.flatMap((id) => {
       const room = model.rooms[id];
