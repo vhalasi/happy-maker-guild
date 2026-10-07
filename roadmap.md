@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Replace the disconnected demo layout with a coherent, supported building.
+- [ ] Improve live building materials, floor slabs, opening details, and lighting.
+
 - [x] Add a structured, versioned architectural model with stable entity IDs.
 - [x] Render floors, walls, doors, and windows from the model in the live Three.js view.
 - [x] Replace mock inspector/tree data and quantity deltas with model-derived values.
