@@ -69,6 +69,18 @@
   --blueprint-foreground: oklch(0.14 0.02 240);
   --success: oklch(0.72 0.15 155);
   --warning: oklch(0.78 0.14 80);
+  --scene-plaster: #e4e5df;
+  --scene-timber: #b5a58b;
+  --scene-concrete: #a9ada8;
+  --scene-metal: #414a4c;
+  --scene-glass: #b8d3db;
+  --scene-brass: #b9a36a;
+  --scene-selection: #83bccb;
+  --scene-ground: #849781;
+  --scene-paving: #bcc1ba;
+  --scene-sky: #d8e5eb;
+  --scene-sun: #fff3de;
+  --scene-white: #ffffff;
 }
 
 @layer base {

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { applyOperation, type DesignOperation } from "@/engine/operations";
 import { initialModel, type ProjectModel } from "@/engine/model";
+import { createDemoHouse } from "@/engine/demo-house";
 
 export type EntityType = "site" | "building" | "level" | "room" | "wall" | "opening";
 
@@ -95,7 +96,7 @@ const nameFromBrief = (brief: string) => {
 };
 
 export const useAppStore = create<AppState>()(persist((set) => ({
-  model: initialModel,
+  model: createDemoHouse(),
   operationHistory: [],
   redoHistory: [],
   projectName: "Villa Moreno",
@@ -183,6 +184,14 @@ export const useAppStore = create<AppState>()(persist((set) => ({
   }),
 }), {
   name: "happy-maker-guild-project-v1",
+  version: 1,
+  migrate: (persisted) => {
+    const state = persisted as Partial<AppState>;
+    if (state.projectName === "Villa Moreno" && state.model?.rooms["room-living"]?.x === -1.2 && Object.keys(state.model.rooms).length === 4 && !state.operationHistory?.length) {
+      return { ...state, model: createDemoHouse(), selectedEntityId: null };
+    }
+    return state;
+  },
   storage: createJSONStorage(() => localStorage),
   partialize: (state) => ({
     model: state.model,
