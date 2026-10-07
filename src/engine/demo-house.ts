@@ -40,7 +40,8 @@ export function createDemoHouse(): ProjectModel {
           edges.set(edge, wallId);
           level.wallIds.push(wallId);
         }
-        walls[wallId].roomIds.push(id);
+        const wall = walls[wallId];
+        if (wall) wall.roomIds.push(id);
         room.wallIds.push(wallId);
       }
     }

@@ -1,7 +1,7 @@
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { applyOperation, type DesignOperation } from "@/engine/operations";
-import { initialModel, type ProjectModel } from "@/engine/model";
+import type { ProjectModel } from "@/engine/model";
 import { createDemoHouse } from "@/engine/demo-house";
 
 export type EntityType = "site" | "building" | "level" | "room" | "wall" | "opening";

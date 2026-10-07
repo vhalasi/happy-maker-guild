@@ -1,6 +1,6 @@
 import { createElement as h, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
 import { Canvas } from "@react-three/fiber";
-import { OrbitControls, Grid, useGLTF, Environment, Lightformer, ContactShadows, useTexture } from "@react-three/drei";
+import { OrbitControls, Grid, useGLTF, Environment, Lightformer, useTexture } from "@react-three/drei";
 import { useAppStore } from "@/state/appStore";
 import { Button } from "@/components/ui/button";
 import { Box, Layers } from "lucide-react";
@@ -9,12 +9,13 @@ import oakImage from "@/assets/oak-floor.jpg";
 import plasterImage from "@/assets/mineral-plaster.jpg";
 import type { Opening, Wall } from "@/engine/model";
 
-type Palette = Record<string, string>;
+type Palette = { plaster: string; timber: string; concrete: string; metal: string; glass: string; brass: string; selection: string; ground: string; paving: string; sky: string; sun: string; white: string };
 function usePalette() {
   const [palette, setPalette] = useState<Palette | null>(null);
   useEffect(() => {
     const style = getComputedStyle(document.documentElement);
-    setPalette(Object.fromEntries(["plaster", "timber", "concrete", "metal", "glass", "brass", "selection", "ground", "paving", "sky", "sun", "white"].map((name) => [name, style.getPropertyValue(`--scene-${name}`).trim()])));
+    const get = (name: string) => style.getPropertyValue(`--scene-${name}`).trim();
+    setPalette({ plaster: get("plaster"), timber: get("timber"), concrete: get("concrete"), metal: get("metal"), glass: get("glass"), brass: get("brass"), selection: get("selection"), ground: get("ground"), paving: get("paving"), sky: get("sky"), sun: get("sun"), white: get("white") });
   }, []);
   return palette;
 }
