@@ -1,10 +1,10 @@
 import { createElement as h, Suspense, useEffect, useMemo, useState, type ReactNode } from "react";
-import { Canvas } from "@react-three/fiber";
+import { Canvas, useThree } from "@react-three/fiber";
 import { OrbitControls, Grid, useGLTF, Environment, Lightformer, useTexture } from "@react-three/drei";
 import { useAppStore } from "@/state/appStore";
 import { Button } from "@/components/ui/button";
 import { Box, Layers } from "lucide-react";
-import { Color, DoubleSide, RepeatWrapping, SRGBColorSpace, CanvasTexture } from "three";
+import { Color, DoubleSide, RepeatWrapping, SRGBColorSpace, CanvasTexture, Fog, PerspectiveCamera } from "three";
 import oakImage from "@/assets/oak-floor.jpg";
 import plasterImage from "@/assets/mineral-plaster.jpg";
 import type { Opening, Wall, Level } from "@/engine/model";
@@ -135,6 +135,22 @@ function WallMesh({ wall, openings, elevation, selected, onSelect, palette }: { 
 
 function Scene({ palette, exterior }: { palette: Palette; exterior: boolean }) {
   const model = useAppStore((s) => s.model);
+  const { scene, camera, size, invalidate } = useThree();
+  useEffect(() => {
+    scene.background = new Color(palette.sky);
+    scene.fog = new Fog(palette.sky, 45, 150);
+    return () => { scene.background = null; scene.fog = null; };
+  }, [scene, palette]);
+  useEffect(() => {
+    if (!(camera instanceof PerspectiveCamera)) return;
+    const rooms = Object.values(model.rooms);
+    const span = Math.max(8, ...rooms.map((room) => Math.max(Math.abs(room.x) + room.width / 2, Math.abs(room.z) + room.length / 2) * 2));
+    const horizontalFov = 2 * Math.atan(Math.tan(camera.fov * Math.PI / 360) * size.width / size.height);
+    const distance = (span * 1.6) / (2 * Math.tan(Math.min(camera.fov * Math.PI / 180, horizontalFov) / 2));
+    camera.position.set(distance * 0.7, distance * 0.48 + 2.5, distance * 0.7);
+    camera.lookAt(0, 2.5, 0);
+    invalidate();
+  }, [camera, size.width, size.height, model.site.id, invalidate]);
   const selectedEntityId = useAppStore((s) => s.selectedEntityId);
   const selectEntity = useAppStore((s) => s.selectEntity);
   const detailedAsset = useAppStore((s) => s.jobs.filter((job) => job.status === "done" && job.artifactUrl && job.modelVersion === s.model.version).at(-1));
@@ -161,8 +177,6 @@ function Scene({ palette, exterior }: { palette: Palette; exterior: boolean }) {
     });
   });
   return h("group", null,
-    h("color", { key: "background", attach: "background", args: [palette.sky] }),
-    h("fog", { key: "fog", attach: "fog", args: [palette.sky, 45, 150] }),
     h("hemisphereLight", { key: "hemi", args: [palette.sky, palette.ground, 1.15] }),
     h("directionalLight", { key: "sun", position: [15, 22, 14], intensity: 2.5, color: palette.sun, castShadow: true, "shadow-mapSize-width": 2048, "shadow-mapSize-height": 2048, "shadow-camera-left": -18, "shadow-camera-right": 18, "shadow-camera-top": 18, "shadow-camera-bottom": -18, "shadow-normalBias": 0.025 }),
     h(Environment, { key: "env", resolution: 128 },
